@@ -1,0 +1,8 @@
+---
+bail: false
+coverage: false
+test-regex: "(?:\\.test\\.js)$"
+test-env:
+  - ENV_FILE_PATH=test/utils/env
+  - LOG_LEVEL=fatal
+timeout: 60
