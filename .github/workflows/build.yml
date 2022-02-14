@@ -39,6 +39,12 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v1
       - name: Build Image
@@ -50,6 +56,6 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_REPOSITORY }}/lambda:${{ env.PACKAGE_VERSION }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_REPOSITORY }}/lambda:${{ env.BUILD_DATE }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_REPOSITORY }}/lambda:latest
-            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.AWS_ECR_REPOSITORY }}:latest
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.AWS_ECR_REPOSITORY }}:latest
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
