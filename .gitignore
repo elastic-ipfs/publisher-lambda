@@ -1,3 +1,5 @@
+./peerId.json
+.env*
 coverage/
 dist/
-event.json
+event*.json

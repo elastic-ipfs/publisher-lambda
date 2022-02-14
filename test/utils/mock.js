@@ -1,20 +1,33 @@
 'use strict'
 
-const { SQSClient, DeleteMessageBatchCommand } = require('@aws-sdk/client-sqs')
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs')
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3')
+
 const { mockClient } = require('aws-sdk-client-mock')
 const sqsMock = mockClient(SQSClient)
+const s3Mock = mockClient(S3Client)
 
-function trackSQSDeletions(t, failed = false) {
-  t.context.sqsDeletions = []
+function trackAWSUsages(t, failed = false) {
+  t.context = {
+    s3: { puts: [] },
+    sqs: { sends: [] }
+  }
 
-  sqsMock.on(DeleteMessageBatchCommand).callsFake(params => {
-    t.context.sqsDeletions.push(params)
+  s3Mock.on(PutObjectCommand).callsFake(params => {
+    t.context.s3.puts.push(params)
 
-    return { Failed: failed }
+    return true
+  })
+
+  sqsMock.on(SendMessageCommand).callsFake(params => {
+    t.context.sqs.sends.push(params)
+
+    return true
   })
 }
 
 module.exports = {
+  s3Mock,
   sqsMock,
-  trackSQSDeletions
+  trackAWSUsages
 }
