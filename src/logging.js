@@ -39,7 +39,12 @@ function elapsed(startTime, precision = 3, unit = 'milliseconds') {
   return (Number(process.hrtime.bigint() - startTime) / dividend).toFixed(precision)
 }
 
+function serializeError(e) {
+  return `[${e.code || e.constructor.name}] ${e.message}`
+}
+
 module.exports = {
   logger,
-  elapsed
+  elapsed,
+  serializeError
 }

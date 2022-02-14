@@ -1,3 +1,3 @@
-BITSWAP_PEER_CID=bafzbeibhqavlasjc7dvbiopygwncnrtvjd2xmryk5laib7zyjor6kf3avm
-HYDRA_ROOT_URL=http://127.0.0.1:7779
-SQS_PUBLISHING_QUEUE_URL=https://sqs.eu-west-1.amazonaws.com/505595374361/paolo-queue
+BITSWAP_PEER_MULTIADDR=/ip4/12.34.56.78/tcp/999/ws
+INDEXER_NODE_URL=http://87.65.43.21:2345
+S3_BUCKET=advertisements
