@@ -1,6 +1,6 @@
 {
-  "name": "aws-ipfs-publishing-labmda",
-  "version": "0.1.0",
+  "name": "aws-ipfs-publishing-lambda",
+  "version": "1.0.0",
   "description": "AWS IPFS Publishing Lambda",
   "homepage": "https://github.com/web3-storage/aws-ipfs-publishing-lambda",
   "repository": "github:web3-storage/aws-ipfs-publishing-lambda",

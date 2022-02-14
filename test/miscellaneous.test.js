@@ -1,7 +1,6 @@
 'use strict'
 
 process.env.PEER_ID_S3_BUCKET = 'idBucket'
-process.env.PEER_ID_FILE = 'id.json'
 
 const { GetObjectCommand } = require('@aws-sdk/client-s3')
 const { readFile } = require('fs/promises')
@@ -19,7 +18,7 @@ t.test('config - download the peerId from S3', async t => {
 
   s3Mock.on(GetObjectCommand).callsFake(async params => {
     t.equal(params.Bucket, 'idBucket')
-    t.equal(params.Key, 'id.json')
+    t.equal(params.Key, 'peerId.json')
 
     return { Body: Readable.from(rawPeer) }
   })
@@ -34,7 +33,7 @@ t.test('config - creates a new PeerId if download fails', async t => {
 
   s3Mock.on(GetObjectCommand).callsFake(async params => {
     t.equal(params.Bucket, 'idBucket')
-    t.equal(params.Key, 'id.json')
+    t.equal(params.Key, 'peerId.json')
 
     return { Body: Readable.from('INVALID', 'utf-8') }
   })

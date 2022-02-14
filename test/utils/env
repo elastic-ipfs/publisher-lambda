@@ -1,4 +1,3 @@
 BITSWAP_PEER_MULTIADDR=/ip4/12.34.56.78/tcp/999/ws
 INDEXER_NODE_URL=http://87.65.43.21:2345
 S3_BUCKET=advertisements
-SQS_ADVERTISEMENTS_QUEUE_URL=https://sqs.us-west-2.amazonaws.com/505595374361/queue
