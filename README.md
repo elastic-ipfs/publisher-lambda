@@ -6,9 +6,11 @@ _Variables in bold are required._
 
 | Name                         | Default               | Description                                                                            |
 | ---------------------------- | --------------------- | -------------------------------------------------------------------------------------- |
-| AWS_ACCESS_KEY_ID            |                       | The AWS key ID.                                                                        |
-| **AWS_REGION**               |                       | The AWS region.                                                                        |
-| AWS_SECRET_ACCESS_KEY        |                       | The AWS access key.                                                                    |
+| AWS_ACCESS_KEY_ID            |                       | The AWS key ID. **This is also required as GitHub repository secret.**                 |
+| AWS_ACCOUNT_ID               |                       | The AWS account id. **This is only required as GitHub repository secret.**             |
+| AWS_ECR_REPOSITORY           |                       | The AWS ECR repository. **This is only required as GitHub repository secret.**         |
+| **AWS_REGION**               |                       | The AWS region. **This is also required as GitHub repository secret.**                 |
+| AWS_SECRET_ACCESS_KEY        |                       | The AWS access key. **This is also required as GitHub repository secret.**             |
 | **BITSWAP_PEER_MULTIADDR**   |                       | The multiaddr of the BitSwap peer to download the data from. Omit the `/p2p/...` part. |
 | ENV_FILE_PATH                | `$PWD/.env`           | The environment file to load.                                                          |
 | **HANDLER**                  |                       | The operation to execute. Can be `content` or `advertisement`.                         |

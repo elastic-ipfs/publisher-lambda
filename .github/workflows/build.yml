@@ -39,6 +39,8 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
       - name: Build Image
         uses: docker/build-push-action@v2
         with:
@@ -48,5 +50,6 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_REPOSITORY }}/lambda:${{ env.PACKAGE_VERSION }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_REPOSITORY }}/lambda:${{ env.BUILD_DATE }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_REPOSITORY }}/lambda:latest
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.AWS_ECR_REPOSITORY }}:latest
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}

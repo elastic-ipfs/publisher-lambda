@@ -13,7 +13,7 @@
     "build": "bash scripts/build.sh",
     "test": "c8 --reporter=text --reporter=html tap --rcfile=test/utils/config.yml",
     "test:ci": "c8 --reporter=text --reporter=json --check-coverage --branches 90 --functions 90 --lines 90 --statements 90 tap --rcfile=test/utils/config.yml",
-    "deploy": "aws lambda update-function-code --cli-connect-timeout 15000 --region $AWS_REGION --function-name $LAMBDA --zip-file fileb://dist/lambda.zip",
+    "deploy": "aws lambda update-function-code --cli-connect-timeout 15000 --region $AWS_REGION --function-name $LAMBDA --image $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$AWS_ECR_REPOSITORY:latest",
     "invoke": "aws lambda invoke --cli-binary-format raw-in-base64-out --region $AWS_REGION --function-name $LAMBDA --payload file://event.json --log-type Tail /dev/null | jq -r .LogResult | base64 -d"
   },
   "dependencies": {

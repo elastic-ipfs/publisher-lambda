@@ -15,7 +15,7 @@ RUN npm install --production
 COPY src /app
 
 # Stage two, final build
-FROM node:16-alpine
+FROM node:16-alpine as final
 WORKDIR /app
 COPY --from=base /usr/local /usr/local
 COPY --from=base /app /app
