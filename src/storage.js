@@ -1,6 +1,6 @@
 const { BufferList } = require('bl')
 const { S3Client, GetObjectCommand, PutObjectCommand } = require('@aws-sdk/client-s3')
-const { SQSClient, SendMessageCommand, DeleteMessageBatchCommand } = require('@aws-sdk/client-sqs')
+const { SQSClient, SendMessageCommand } = require('@aws-sdk/client-sqs')
 
 const { NodeHttpHandler } = require('@aws-sdk/node-http-handler')
 const { Agent } = require('https')
