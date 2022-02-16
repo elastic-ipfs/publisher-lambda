@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       lambda:
-        description: 'Lambda Name'
+        description: 'Lambda Prefix'
         required: true
-        default: 'indexing'
+        default: 'publishing'
 env:
   REGISTRY: ghcr.io
 jobs:
@@ -31,11 +31,19 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
-      - name: Deploy Lambda
+      - name: Deploy Lambda (Content)
         run: |
           npm run deploy
         env:
-          LAMBDA: ${{ env.LAMBDA }}
+          LAMBDA: ${{ env.LAMBDA }}-content
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_ECR_REPOSITORY: ${{ secrets.AWS_ECR_REPOSITORY }}
+      - name: Deploy Lambda (Advertisement)
+        run: |
+          npm run deploy
+        env:
+          LAMBDA: ${{ env.LAMBDA }}-advertisement
           AWS_REGION: ${{ secrets.AWS_REGION }}
           AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
           AWS_ECR_REPOSITORY: ${{ secrets.AWS_ECR_REPOSITORY }}
