@@ -10,7 +10,7 @@ on:
 env:
   REGISTRY: ghcr.io
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
