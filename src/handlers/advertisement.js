@@ -8,19 +8,26 @@ const p2pCrypto = require('libp2p-crypto')
 const { sha256 } = require('multiformats/hashes/sha2')
 const { CID } = require('multiformats/cid')
 const { Multiaddr } = require('multiaddr')
+const { setTimeout } = require('timers/promises')
 const { request } = require('undici')
 
 const { awsRegion, getPeerId, s3Bucket, bitswapPeerMultiaddr, indexerNodeUrl, metadata } = require('../config')
 const { logger, serializeError } = require('../logging')
 const { uploadToS3 } = require('../storage')
+const { metrics, storeMetrics, trackDuration } = require('../telemetry')
 
 async function fetchHeadCid() {
   try {
+    metrics.httpFetchHeadCid.add(1)
+
     const {
       statusCode,
       headers,
       body: rawBody
-    } = await request(`https://${s3Bucket}.s3.${awsRegion}.amazonaws.com/head`)
+    } = await trackDuration(
+      metrics.httpFetchHeadCidDurations,
+      request(`https://${s3Bucket}.s3.${awsRegion}.amazonaws.com/head`)
+    )
 
     const buffer = new BufferList()
 
@@ -101,37 +108,42 @@ async function updateHead(advertisementCid, peerId) {
 
 async function notifyIndexer(cid, peerId) {
   try {
+    metrics.indexerNotification.add(1)
+
     const {
       statusCode,
       headers,
       body: rawBody
-    } = await request(`${indexerNodeUrl}/ingest/announce`, {
-      method: 'PUT',
-      headers: {
-        'content-type': 'application/cbor; charset=utf-8'
-      },
-      body: encodeCBOR(
-        [
-          cid,
+    } = await trackDuration(
+      metrics.indexerNotificationDurations,
+      request(`${indexerNodeUrl}/ingest/announce`, {
+        method: 'PUT',
+        headers: {
+          'content-type': 'application/cbor; charset=utf-8'
+        },
+        body: encodeCBOR(
           [
-            new Multiaddr(`/dns4/${s3Bucket}.s3.${awsRegion}.amazonaws.com/tcp/443/https/p2p/${peerId.toString()}`)
-              .bytes
+            cid,
+            [
+              new Multiaddr(`/dns4/${s3Bucket}.s3.${awsRegion}.amazonaws.com/tcp/443/https/p2p/${peerId.toString()}`)
+                .bytes
+            ],
+            Buffer.alloc(0)
           ],
-          Buffer.alloc(0)
-        ],
-        {
-          typeEncoders: {
-            Object: function (cid) {
-              // CID must be prepended with 0 for historical reason - See: https://github.com/ipld/cid-cbor
-              const bytes = new BufferList(Buffer.alloc(1))
-              bytes.append(cid.bytes)
+          {
+            typeEncoders: {
+              Object: function (cid) {
+                // CID must be prepended with 0 for historical reason - See: https://github.com/ipld/cid-cbor
+                const bytes = new BufferList(Buffer.alloc(1))
+                bytes.append(cid.bytes)
 
-              return [new Token(Type.tag, 42), new Token(Type.bytes, bytes.slice())]
+                return [new Token(Type.tag, 42), new Token(Type.bytes, bytes.slice())]
+              }
             }
           }
-        }
-      )
-    })
+        )
+      })
+    )
 
     // Some error occurred, return with an error
     if (statusCode !== 204) {
@@ -162,49 +174,62 @@ async function notifyIndexer(cid, peerId) {
 }
 
 async function main(event) {
-  const peerId = await getPeerId()
+  try {
+    const peerId = await getPeerId()
 
-  // Track the latest read cid and advertisementCid
-  let cid
-  let advertisementCid
+    // Track the latest read cid and advertisementCid
+    let cid
+    let advertisementCid
 
-  for (const record of event.Records) {
-    const cidString = record.body
-    cid = CID.parse(cidString)
+    for (const record of event.Records) {
+      const cidString = record.body
+      cid = CID.parse(cidString)
 
-    const previous = advertisementCid ? { '/': advertisementCid.toString() } : await fetchHeadCid()
-    const addresses = [bitswapPeerMultiaddr]
+      const previous = advertisementCid ? { '/': advertisementCid.toString() } : await fetchHeadCid()
+      const addresses = [bitswapPeerMultiaddr]
 
-    // Create the advertisement
-    const rawAdvertisement = {
-      Provider: peerId.toString(),
-      Addresses: addresses,
-      Entries: { '/': cidString },
-      ContextID: { '/': { bytes: Buffer.from(cidString).toString('base64') } },
-      Metadata: metadata,
-      IsRm: false,
-      Signature: await computeAdvertisementSignature(previous, peerId, cid, addresses)
+      // Create the advertisement
+      const rawAdvertisement = {
+        Provider: peerId.toString(),
+        Addresses: addresses,
+        Entries: { '/': cidString },
+        ContextID: { '/': { bytes: Buffer.from(cidString).toString('base64') } },
+        Metadata: metadata,
+        IsRm: false,
+        Signature: await computeAdvertisementSignature(previous, peerId, cid, addresses)
+      }
+
+      if (previous) {
+        rawAdvertisement.PreviousID = previous
+      }
+
+      const advertisement = await encodeDAG(rawAdvertisement)
+      advertisementCid = CID.create(1, dagCode, await sha256.digest(advertisement))
+
+      // Upload the file to S3
+      await uploadToS3(s3Bucket, advertisementCid.toString(), advertisement)
     }
 
-    if (previous) {
-      rawAdvertisement.PreviousID = previous
-    }
+    // Update the head
+    await await updateHead(advertisementCid, peerId)
 
-    const advertisement = await encodeDAG(rawAdvertisement)
-    advertisementCid = CID.create(1, dagCode, await sha256.digest(advertisement))
+    // Notify the indexer-node
+    await notifyIndexer(cid, peerId)
 
-    // Upload the file to S3
-    await uploadToS3(s3Bucket, advertisementCid.toString(), advertisement)
+    // Return a empty object to signal we have consumed all the messages
+    return {}
+  } catch (e) {
+    logger.error(`Cannot publish an advertisement: ${serializeError(e)}`)
+
+    throw e
+    /* c8 ignore next */
+  } finally {
+    // Wait a little more to let all metrics being collected
+    await setTimeout(200)
+
+    // Output metrics
+    logger.info({ metrics: storeMetrics() }, 'Operation has completed.')
   }
-
-  // Update the head
-  await await updateHead(advertisementCid, peerId)
-
-  // Notify the indexer-node
-  await notifyIndexer(cid, peerId)
-
-  // Return a empty object to signal we have consumed all the messages
-  return {}
 }
 
 exports.handler = main
