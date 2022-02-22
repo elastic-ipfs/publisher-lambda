@@ -208,6 +208,7 @@ async function main(event) {
 
       // Upload the file to S3
       await uploadToS3(s3Bucket, advertisementCid.toString(), advertisement)
+      logger.info({ metrics: storeMetrics() }, 'Advertisement published.')
     }
 
     // Update the head
