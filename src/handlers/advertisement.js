@@ -8,24 +8,23 @@ const p2pCrypto = require('libp2p-crypto')
 const { sha256 } = require('multiformats/hashes/sha2')
 const { CID } = require('multiformats/cid')
 const { Multiaddr } = require('multiaddr')
-const { setTimeout } = require('timers/promises')
 const { request } = require('undici')
 
 const { awsRegion, getPeerId, s3Bucket, bitswapPeerMultiaddr, indexerNodeUrl, metadata } = require('../config')
 const { logger, serializeError } = require('../logging')
 const { uploadToS3 } = require('../storage')
-const { metrics, storeMetrics, trackDuration } = require('../telemetry')
+const telemetry = require('../telemetry')
 
 async function fetchHeadCid() {
   try {
-    metrics.httpFetchHeadCid.add(1)
+    telemetry.increaseCount('http-head-cid-fetchs')
 
     const {
       statusCode,
       headers,
       body: rawBody
-    } = await trackDuration(
-      metrics.httpFetchHeadCidDurations,
+    } = await telemetry.trackDuration(
+      'http-head-cid-fetchs',
       request(`https://${s3Bucket}.s3.${awsRegion}.amazonaws.com/head`)
     )
 
@@ -108,14 +107,14 @@ async function updateHead(advertisementCid, peerId) {
 
 async function notifyIndexer(cid, peerId) {
   try {
-    metrics.indexerNotification.add(1)
+    telemetry.increaseCount('http-indexer-announcements')
 
     const {
       statusCode,
       headers,
       body: rawBody
-    } = await trackDuration(
-      metrics.indexerNotificationDurations,
+    } = await telemetry.trackDuration(
+      'http-indexer-announcements',
       request(`${indexerNodeUrl}/ingest/announce`, {
         method: 'PUT',
         headers: {
@@ -208,7 +207,7 @@ async function main(event) {
 
       // Upload the file to S3
       await uploadToS3(s3Bucket, advertisementCid.toString(), advertisement)
-      logger.info({ metrics: storeMetrics() }, 'Advertisement published.')
+      await telemetry.flush()
     }
 
     // Update the head
@@ -225,11 +224,7 @@ async function main(event) {
     throw e
     /* c8 ignore next */
   } finally {
-    // Wait a little more to let all metrics being collected
-    await setTimeout(200)
-
-    // Output metrics
-    logger.info({ metrics: storeMetrics() }, 'Operation has completed.')
+    await telemetry.flush()
   }
 }
 

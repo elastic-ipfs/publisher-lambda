@@ -4,12 +4,11 @@ const { encode: encodeDAG, code: dagCode } = require('@ipld/dag-json')
 const { base58btc: base58 } = require('multiformats/bases/base58')
 const { sha256 } = require('multiformats/hashes/sha2')
 const { CID } = require('multiformats/cid')
-const { setTimeout } = require('timers/promises')
 
 const { advertisementsQueue, s3Bucket } = require('../config')
 const { logger, elapsed, serializeError } = require('../logging')
 const { uploadToS3, publishToSQS } = require('../storage')
-const { storeMetrics } = require('../telemetry')
+const telemetry = require('../telemetry')
 
 async function main(event) {
   try {
@@ -45,11 +44,7 @@ async function main(event) {
 
     throw e
   } finally {
-    // Wait a little more to let all metrics being collected
-    await setTimeout(200)
-
-    // Output metrics
-    logger.info({ metrics: storeMetrics() }, 'Operation has completed.')
+    await telemetry.flush()
   }
 }
 
