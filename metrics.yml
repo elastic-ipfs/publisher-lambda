@@ -1,0 +1,9 @@
+---
+component: publisher-lambda
+interval: 1000
+metrics:
+  s3-fetchs: AWS S3 GetObject
+  s3-uploads: AWS S3 PutObject
+  sqs-publishes: AWS SQS SendMessage
+  http-head-cid-fetchs: HTTP Fetchs of head CID
+  http-indexer-announcements: Notifications of new heads to the Indexer
