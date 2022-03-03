@@ -207,7 +207,7 @@ async function main(event) {
 
       // Upload the file to S3
       await uploadToS3(s3Bucket, advertisementCid.toString(), advertisement)
-      await telemetry.flush()
+      telemetry.flush()
     }
 
     // Update the head
@@ -224,7 +224,7 @@ async function main(event) {
     throw e
     /* c8 ignore next */
   } finally {
-    await telemetry.flush()
+    telemetry.flush()
   }
 }
 
