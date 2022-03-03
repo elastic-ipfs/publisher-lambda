@@ -47,6 +47,9 @@ t.test('telemetry', async t => {
   t.plan(3)
 
   // Reset other metrics
+  telemetry.logger = {
+    info(arg) {}
+  }
   telemetry.flush()
 
   // Prepare metrics
