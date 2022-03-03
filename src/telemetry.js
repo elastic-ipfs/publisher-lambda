@@ -8,33 +8,22 @@ const { logger } = require('./logging')
 
 const percentiles = [0.001, 0.01, 0.1, 1, 2.5, 10, 25, 50, 75, 90, 97.5, 99, 99.9, 99.99, 99.999]
 
-class SumAggregator {
-  constructor() {
-    this.reset()
-  }
+class Aggregator {
+  constructor(category, description, metric) {
+    this.tag = `${category}-${metric}`
+    this.description = `${description} (${metric})`
+    this.exportName = this.tag.replaceAll('-', '_')
 
-  record(value) {
-    this.value += value
-  }
-
-  reset() {
-    this.value = 0
-  }
-
-  current() {
-    const value = {
-      value: this.value,
-      timestamp: Date.now()
+    if (category.match(/active|pending/)) {
+      this.type = 'gauge'
+    } else if (metric === 'durations') {
+      this.type = 'histogram'
+    } else {
+      this.type = 'counter'
+      this.exportName += '_total'
     }
 
-    this.reset()
-
-    return value
-  }
-}
-
-class HistogramAggregator {
-  constructor() {
+    this.sum = 0
     this.histogram = buildHistogram({
       lowestDiscernibleValue: 1,
       highestTrackableValue: 1e9,
@@ -43,10 +32,15 @@ class HistogramAggregator {
   }
 
   record(value) {
-    this.histogram.recordValue(value)
+    this.sum += value
+
+    if (this.type === 'histogram') {
+      this.histogram.recordValue(value)
+    }
   }
 
   reset() {
+    this.sum = 0
     this.histogram.reset()
   }
 
@@ -54,7 +48,9 @@ class HistogramAggregator {
     const { minNonZeroValue: min, maxValue: max, mean, stdDeviation: stdDev, totalCount: count } = this.histogram
 
     const value = {
-      value:
+      empty: (this.type === 'histogram' && count === 0) || (this.type === 'counter' && this.sum === 0),
+      sum: this.sum,
+      histogram:
         count > 0
           ? {
               count,
@@ -97,10 +93,9 @@ class Telemetry {
   }
 
   createMetric(category, description, metric) {
-    const tag = `${category}-${metric}`
-    const Aggregator = metric.endsWith('durations') ? HistogramAggregator : SumAggregator
+    const instance = new Aggregator(category, description, metric)
 
-    this.metrics.set(tag, new Aggregator())
+    this.metrics.set(instance.tag, instance)
   }
 
   ensureMetric(category, metric) {
@@ -116,12 +111,14 @@ class Telemetry {
   export() {
     const metrics = {}
 
-    for (const [name, metric] of this.metrics.entries()) {
-      const value = metric.current().value
+    for (const metric of this.metrics.values()) {
+      const current = metric.current()
 
-      if (typeof value !== 'undefined' && value !== 0) {
-        metrics[name] = value
+      if (current.empty) {
+        continue
       }
+
+      metrics[metric.tag] = metric.type === 'histogram' ? { sum: current.sum, ...current.histogram } : current.sum
     }
 
     this.logger.info({ ipfs_provider_component: this.component, metrics }, 'Dumping metrics ...')
