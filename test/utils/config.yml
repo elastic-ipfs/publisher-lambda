@@ -5,4 +5,5 @@ test-regex: "(?:\\.test\\.js)$"
 test-env:
   - ENV_FILE_PATH=test/utils/env
   - LOG_LEVEL=fatal
+  - HANDLER=content
 timeout: 60

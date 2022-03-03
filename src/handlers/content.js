@@ -44,7 +44,7 @@ async function main(event) {
 
     throw e
   } finally {
-    await telemetry.flush()
+    telemetry.flush()
   }
 }
 
