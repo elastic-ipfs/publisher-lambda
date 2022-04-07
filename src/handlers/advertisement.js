@@ -110,7 +110,7 @@ async function notifyIndexer(cid, peerId) {
     telemetry.increaseCount('http-indexer-announcements')
 
     const indexerURL = `${indexerNodeUrl}/ingest/announce`
-    logger.info(`notifyIndexer  at + ${indexerURL}`)
+    logger.info(`notifyIndexer at ${indexerURL}`)
 
     const {
       statusCode,
