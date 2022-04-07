@@ -109,7 +109,8 @@ async function notifyIndexer(cid, peerId) {
   try {
     telemetry.increaseCount('http-indexer-announcements')
 
-    logger.info(`notifyIndexer  at + ${indexerNodeUrl}/ingest/announce`)
+    const indexerURL = `${indexerNodeUrl}/ingest/announce`
+    logger.info(`notifyIndexer  at + ${indexerURL}`)
 
     const {
       statusCode,
@@ -117,7 +118,7 @@ async function notifyIndexer(cid, peerId) {
       body: rawBody
     } = await telemetry.trackDuration(
       'http-indexer-announcements',
-      request(`${indexerNodeUrl}/ingest/announce`, {
+      request(indexerURL, {
         method: 'PUT',
         headers: {
           'content-type': 'application/cbor; charset=utf-8'
