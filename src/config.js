@@ -47,7 +47,7 @@ module.exports = {
   bitswapPeerMultiaddr,
   getPeerId,
   indexerNodeUrl,
-  metadata: Buffer.from(require('varint').encode(0x900)).toString('base64'),
+  metadata: Buffer.from('gBI=', 'base64'), // To regenerate: Buffer.from(require('varint').encode(0x900)).toString('base64')
   peerIdJsonPath: join(peerIdJsonDirectory ?? '/tmp', peerIdJsonFile ?? 'peerId.json'),
   s3Bucket: s3Bucket ?? 'advertisements'
 }
