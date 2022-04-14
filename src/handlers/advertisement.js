@@ -19,11 +19,7 @@ async function fetchHeadCid() {
   try {
     telemetry.increaseCount('http-head-cid-fetchs')
 
-    const {
-      statusCode,
-      headers,
-      body: rawBody
-    } = await telemetry.trackDuration(
+    const { statusCode, headers, body: rawBody } = await telemetry.trackDuration(
       'http-head-cid-fetchs',
       request(`https://${s3Bucket}.s3.${awsRegion}.amazonaws.com/head`)
     )
@@ -112,11 +108,7 @@ async function notifyIndexer(cid, peerId) {
     const indexerURL = `${indexerNodeUrl}/ingest/announce`
     logger.info(`notifyIndexer at ${indexerURL}`)
 
-    const {
-      statusCode,
-      headers,
-      body: rawBody
-    } = await telemetry.trackDuration(
+    const { statusCode, headers, body: rawBody } = await telemetry.trackDuration(
       'http-indexer-announcements',
       request(indexerURL, {
         method: 'PUT',
@@ -167,10 +159,10 @@ async function notifyIndexer(cid, peerId) {
       throw error
     }
   } catch (e) {
-    if (!e.handled) {
-      logger.error(`Announcing to the indexer node failed: ${serializeError(e)}`)
+    logger.error(`Announcing to the indexer node failed: ${serializeError(e)}`)
+    if (e.handled) {
+      return
     }
-
     throw e
   }
 }
