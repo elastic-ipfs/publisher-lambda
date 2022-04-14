@@ -142,7 +142,7 @@ t.test('advertisement - handles head fetching generic error', async t => {
   )
 })
 
-t.test('advertisement - handles indexer announcing HTTP error', async t => {
+t.test('advertisement - handles indexer announcing HTTP error. It should fail silently', async t => {
   t.plan(1)
 
   const mockAgent = new MockAgent()
@@ -161,19 +161,18 @@ t.test('advertisement - handles indexer announcing HTTP error', async t => {
   trackAWSUsages(t)
   setGlobalDispatcher(mockAgent)
 
-  await t.rejects(
-    () =>
-      handler({
-        Records: [
-          { body: 'baguqeera4vd5tybgxaub4elwag6v7yhswhflfyopogr7r32b7dpt5mqfmmoq' },
-          { body: 'baguqeeramxlkaqnblpdl53ygpu4ackscn7ipm54ra2iwiq5kfolvd6vh6bda' }
-        ]
-      }),
-    { message: 'Announcing to the indexer node failed with status code 500 and body: BODY' }
+  t.strictSame(
+    await handler({
+      Records: [
+        { body: 'baguqeera4vd5tybgxaub4elwag6v7yhswhflfyopogr7r32b7dpt5mqfmmoq' },
+        { body: 'baguqeeramxlkaqnblpdl53ygpu4ackscn7ipm54ra2iwiq5kfolvd6vh6bda' }
+      ]
+    }),
+    {}
   )
 })
 
-t.test('advertisement - handles indexer announcing HTTP+JSON error', async t => {
+t.test('advertisement - handles indexer announcing HTTP+JSON error. It should fail silently', async t => {
   t.plan(1)
 
   const mockAgent = new MockAgent()
@@ -192,15 +191,14 @@ t.test('advertisement - handles indexer announcing HTTP+JSON error', async t => 
   trackAWSUsages(t)
   setGlobalDispatcher(mockAgent)
 
-  await t.rejects(
-    () =>
-      handler({
-        Records: [
-          { body: 'baguqeera4vd5tybgxaub4elwag6v7yhswhflfyopogr7r32b7dpt5mqfmmoq' },
-          { body: 'baguqeeramxlkaqnblpdl53ygpu4ackscn7ipm54ra2iwiq5kfolvd6vh6bda' }
-        ]
-      }),
-    { message: 'Announcing to the indexer node failed with status code 500 and body: {"error":"ERROR"}' }
+  t.strictSame(
+    await handler({
+      Records: [
+        { body: 'baguqeera4vd5tybgxaub4elwag6v7yhswhflfyopogr7r32b7dpt5mqfmmoq' },
+        { body: 'baguqeeramxlkaqnblpdl53ygpu4ackscn7ipm54ra2iwiq5kfolvd6vh6bda' }
+      ]
+    }),
+    {}
   )
 })
 
