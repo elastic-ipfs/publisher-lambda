@@ -206,10 +206,10 @@ async function main(event) {
     }
 
     // Update the head
-    await await updateHead(advertisementCid, peerId)
+    await updateHead(advertisementCid, peerId)
 
     // Notify the indexer-node
-    await notifyIndexer(cid, peerId)
+    await notifyIndexer(advertisementCid, peerId)
 
     // Return a empty object to signal we have consumed all the messages
     return {}
