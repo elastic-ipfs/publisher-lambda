@@ -1,0 +1,57 @@
+---
+name: 'Shared CD flow'
+on:
+  workflow_call:
+    inputs:
+      deploy_to_environment:
+        type: string
+        description: Name of GH environment which image be deployed to
+        required: false
+        default: ''
+      lambda:
+        required: true
+        type: string
+        description: 'Lambda Name'
+      docker_image_version:
+        required: false
+        type: string
+        default: latest
+        description: Used as version for ECR Docker image
+    secrets:
+      aws_account_id:
+        required: true
+      aws_role_id:
+        required: true
+        description: Role used for authenticating this run with AWS
+      aws_region:
+        required: true
+        description: AWS ECR Region
+      aws_ecr_repository:
+        required: true
+        description: AWS ECR Repository name
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.deploy_to_environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Use Node.js Current
+        uses: actions/setup-node@v2
+        with:
+          node-version: 16.x
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.aws_account_id }}:role/${{ secrets.aws_role_id }}
+          role-session-name: ${{ secrets.aws_role_id }}
+          aws-region: ${{ secrets.aws_region }}
+      - name: Deploy Lambda
+        run: |
+          npm run deploy
+        env:
+          LAMBDA: ${{ inputs.lambda }}
+          AWS_REGION: ${{ secrets.aws_region }}
+          AWS_ACCOUNT_ID: ${{ secrets.aws_account_id }}
+          AWS_ECR_REPOSITORY: ${{ secrets.aws_ecr_repository }}
+          DOCKER_IMAGE_VERSION: ${{ inputs.docker_image_version }}
