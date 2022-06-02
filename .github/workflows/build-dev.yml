@@ -34,7 +34,7 @@ jobs:
       aws_region: ${{ secrets.AWS_REGION }}
       aws_ecr_repository: ${{ secrets.AWS_ECR_REPOSITORY_DEV }}
   deploy-to-advertisement:
-    uses: ipfs-elastic-provider/ipfs-elastic-provider-publisher-lambda/.github/workflows/shared-deploy.yaml@dev
+    uses: ipfs-elastic-provider/ipfs-elastic-provider-publisher-lambda/.github/workflows/shared-deploy.yaml@multienv-workflow
     permissions:
       id-token: write
     needs: build
