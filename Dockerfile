@@ -39,8 +39,8 @@ RUN npm install -g aws-lambda-ric
 
 # Install application dependencies
 WORKDIR /app
-COPY package.json metrics.yml /app/
-RUN npm install --production
+COPY package.json package-lock.json metrics.yml /app/
+RUN npm ci --production
 
 # Copy the source code
 COPY src /app
