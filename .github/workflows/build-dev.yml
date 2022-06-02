@@ -1,0 +1,49 @@
+---
+name: Build and Deploy Dev
+on:
+  push:
+    branches: [dev, multienv-workflow]
+  workflow_dispatch:
+env:
+  REGISTRY: ghcr.io
+jobs:
+  build:
+    permissions:
+      packages: write
+      id-token: write
+    uses: ipfs-elastic-provider/ipfs-elastic-provider-publisher-lambda/.github/workflows/shared-build.yaml@multienv-workflow
+    with:
+      docker_image_version_suffix_label: dev
+    secrets:
+      aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+      aws_role_id: ${{ secrets.AWS_ROLE_ID }}
+      aws_region: ${{ secrets.AWS_REGION }}
+      aws_ecr_repository: ${{ secrets.AWS_ECR_REPOSITORY_DEV }}
+  deploy-to-content:
+    uses: ipfs-elastic-provider/ipfs-elastic-provider-publisher-lambda/.github/workflows/shared-deploy.yaml@multienv-workflow
+    permissions:
+      id-token: write
+    needs: build
+    with:
+      deploy_to_environment: dev
+      lambda: dev-ep-publishing-content
+      docker_image_version: ${{ needs.build.outputs.build_date }}-dev
+    secrets:
+      aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+      aws_role_id: ${{ secrets.AWS_ROLE_ID }}
+      aws_region: ${{ secrets.AWS_REGION }}
+      aws_ecr_repository: ${{ secrets.AWS_ECR_REPOSITORY_DEV }}
+  deploy-to-advertisement:
+    uses: ipfs-elastic-provider/ipfs-elastic-provider-publisher-lambda/.github/workflows/shared-deploy.yaml@dev
+    permissions:
+      id-token: write
+    needs: build
+    with:
+      deploy_to_environment: dev
+      lambda: dev-ep-publishing-advertisement
+      docker_image_version: ${{ needs.build.outputs.build_date }}-dev
+    secrets:
+      aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+      aws_role_id: ${{ secrets.AWS_ROLE_ID }}
+      aws_region: ${{ secrets.AWS_REGION }}
+      aws_ecr_repository: ${{ secrets.AWS_ECR_REPOSITORY_DEV }}
