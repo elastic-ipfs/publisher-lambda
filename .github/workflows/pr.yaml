@@ -7,7 +7,6 @@ on:
 jobs:
   build:
     permissions:
-      packages: write
       id-token: write
     uses: ipfs-elastic-provider/shared-workflows/.github/workflows/lambda-shared-build.yaml@main
     with:
