@@ -1,0 +1,19 @@
+name: PR Build
+on:
+  pull_request:
+    branches:
+      - main
+      - dev
+jobs:
+  build:
+    permissions:
+      packages: write
+      id-token: write
+    uses: ipfs-elastic-provider/shared-workflows/.github/workflows/lambda-shared-build.yaml@main
+    with:
+      docker_push: false
+    secrets:
+      aws_account_id: ${{ secrets.AWS_ACCOUNT_ID }}
+      aws_role_id: ${{ secrets.AWS_ROLE_ID }}
+      aws_region: ${{ secrets.AWS_REGION }}
+      aws_ecr_repository: ${{ secrets.AWS_ECR_REPOSITORY_DEV }}
