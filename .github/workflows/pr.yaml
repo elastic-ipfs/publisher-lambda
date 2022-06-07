@@ -9,7 +9,7 @@ jobs:
     permissions:
       packages: write
       id-token: write
-    uses: ipfs-elastic-provider/ipfs-elastic-provider-publisher-lambda/.github/workflows/shared-build.yaml@pr-workflow
+    uses: ipfs-elastic-provider/shared-workflows/.github/workflows/lambda-shared-build.yaml@main
     with:
       docker_push: false
     secrets:
