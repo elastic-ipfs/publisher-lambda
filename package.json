@@ -1,9 +1,9 @@
 {
-  "name": "aws-ipfs-publishing-lambda",
+  "name": "publishing-lambda",
   "version": "1.0.0",
-  "description": "AWS IPFS Publishing Lambda",
-  "homepage": "https://github.com/web3-storage/aws-ipfs-publishing-lambda",
-  "repository": "github:web3-storage/aws-ipfs-publishing-lambda",
+  "description": "Elastic IPFS Publishing Lambda",
+  "homepage": "https://github.com/elastic-ipfs/publishing-lambda",
+  "repository": "github:web3-storage/publishing-lambda",
   "author": "Paolo Insogna <paolo.insogna@nearform.com>",
   "license": "(Apache-2.0 AND MIT)",
   "private": true,

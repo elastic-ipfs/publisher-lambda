@@ -1,4 +1,4 @@
-# AWS IPFS Publisher Lambda
+# Elastic IPFS Publisher Lambda
 
 ## Deployment environment variables
 

@@ -3,7 +3,7 @@
 process.env.ENV_FILE_PATH = 'dev/null'
 process.env.BITSWAP_PEER_CID = 'bafzbeibhqavlasjc7dvbiopygwncnrtvjd2xmryk5laib7zyjor6kf3avm'
 process.env.LOG_LEVEL = ''
-process.env.NODE_DEBUG = 'aws-ipfs-indexing-lambda'
+process.env.NODE_DEBUG = 'indexing-lambda'
 
 require('../src/config')
 
