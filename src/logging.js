@@ -16,7 +16,7 @@ try {
 if (process.env.LOG_LEVEL) {
   level = process.env.LOG_LEVEL
   /* c8 ignore next */
-} else if ((process.env.NODE_DEBUG ?? '').includes('aws-ipfs')) {
+} else if (process.env.NODE_DEBUG) {
   level = 'debug'
 }
 
