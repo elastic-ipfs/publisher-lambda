@@ -1,9 +1,8 @@
 ---
-name: Build And Deploy
+name: Staging/Prod | Build And Deploy
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 env:
   REGISTRY: ghcr.io
 jobs: # We need two separate builds as each is going to a different ECR repo

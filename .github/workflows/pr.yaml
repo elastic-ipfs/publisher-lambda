@@ -1,9 +1,8 @@
-name: PR Build
+name: PR | Build
 on:
   pull_request:
     branches:
       - main
-      - dev
 jobs:
   build:
     permissions:
