@@ -1,3 +1,5 @@
+HTTP_PEER_MULTIADDR=/dns4/freeway.dag.house/tcp/443/https
 BITSWAP_PEER_MULTIADDR=/ip4/12.34.56.78/tcp/999/ws
 INDEXER_NODE_URL=http://87.65.43.21:2345
 S3_BUCKET=advertisements
+PEER_ID_S3_BUCKET=peerids

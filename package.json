@@ -31,7 +31,8 @@
     "multiformats": "^9.6.1",
     "peer-id": "^0.16.0",
     "pino": "^7.2.0",
-    "undici": "^4.13.0"
+    "undici": "^4.13.0",
+    "varint": "^6.0.0"
   },
   "devDependencies": {
     "aws-sdk-client-mock": "^0.5.6",

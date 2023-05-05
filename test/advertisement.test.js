@@ -5,9 +5,11 @@ process.env.HANDLER = 'advertisement'
 const t = require('tap')
 const { decode: decodeDAG } = require('@ipld/dag-json')
 const { MockAgent, setGlobalDispatcher } = require('undici')
-const { awsRegion, s3Bucket, indexerNodeUrl } = require('../src/config')
+const { awsRegion, s3Bucket, peerIdBucket, indexerNodeUrl } = require('../src/config')
 const { handler } = require('../src/index')
-const { trackAWSUsages } = require('./utils/mock')
+const { trackAWSUsages, mockPeerIds } = require('./utils/mock')
+
+mockPeerIds()
 
 t.test('advertisement - creates a new head when none is found and notifies the indexer', async t => {
   t.plan(8)
