@@ -3,7 +3,6 @@
 process.env.PEER_ID_S3_BUCKET = 'idBucket'
 
 const { GetObjectCommand } = require('@aws-sdk/client-s3')
-const { createFromJSON } = require('peer-id')
 const { Readable } = require('stream')
 const t = require('tap')
 const { getBitswapPeerId } = require('../src/config')
@@ -21,10 +20,10 @@ t.test('config - download the peerId from S3', async t => {
 
     return { Body: Readable.from(JSON.stringify(bsPeer)) }
   })
-
+  const { createFromJSON } = await import('@libp2p/peer-id-factory')
   const expected = await createFromJSON(bsPeer)
   const actual = await getBitswapPeerId()
-  t.equal(expected.toB58String(), actual.toB58String())
+  t.equal(expected.toString(), actual.toString())
 })
 
 t.test('config - fails if PeerId not set', async t => {

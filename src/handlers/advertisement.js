@@ -1,12 +1,12 @@
 'use strict'
 
-const { encode: encodeDAG, code: dagCode } = require('@ipld/dag-json')
+const dagJson = require('@ipld/dag-json')
 const { encode: encodeCBOR, Token, Type } = require('cborg')
 const { BufferList } = require('bl')
-const Envelope = require('libp2p/src/record/envelope')
 const p2pCrypto = require('libp2p-crypto')
 const { sha256 } = require('multiformats/hashes/sha2')
 const { CID } = require('multiformats/cid')
+const Block = require('multiformats/block')
 const { Multiaddr } = require('multiaddr')
 const { request } = require('undici')
 
@@ -14,20 +14,6 @@ const { awsRegion, getBitswapPeerId, getHttpPeerId, s3Bucket, bitswapPeerMultiad
 const { logger, serializeError } = require('../logging')
 const { uploadToS3 } = require('../storage')
 const telemetry = require('../telemetry')
-const varint = require('varint')
-
-// see: https://github.com/ipni/specs/blob/main/IPNI.md#metadata
-const BITSWAP_METADATA = Buffer.from(varint.encode(0x900))
-const HTTP_METADATA = Buffer.from(varint.encode(0x3D0000))
-
-/**
- * see: https://github.com/ipni/specs/blob/main/IPNI.md#extendedprovider
- * @typedef {object} Provider
- * @prop {string} ID - peerID as string
- * @prop {string[]} Addresses - multiaddrs for peer e.g /dns4/freeway.dag.house/tcp/443/https
- * @prop {Buffer} Metadata - prefixed with varint for http or bitswap
- * @prop {Buffer} [Signature] - signature per
- */
 
 async function fetchHeadCid() {
   try {
@@ -72,113 +58,15 @@ async function fetchHeadCid() {
 }
 
 /**
- * Create array of signed Providers
- * @param {Provider[]} providers
- * @param {object} previous
- * @param {PeerId} peerId - advertisment peerId
- * @param {CID} cid - entries CID
- * @param {Buffer} contextId - derived from cid
+ * @param {CID} head
+ * @param {import('@web3-storage/ipni/dist/advertisement').PeerId} peerId
  */
-async function signProviders (providers, previous, peerId, cid, contextId) {
-  const signed = []
-  for (const provider of providers) {
-    const Signature = await providerSignature(previous, peerId, cid, contextId, provider)
-    signed.push({
-      ...provider,
-      Signature
-    })
-  }
-  return signed
-}
-
-/**
- * Calculate the signature for an Extended Provider
- * see: https://github.com/ipni/go-libipni/blob/afe2d8ea45b86c2a22f756ee521741c8f99675e5/ingest/schema/envelope.go#L125
- * @param {object} previous
- * @param {PeerId} peerId - advertisment peerId
- * @param {CID} cid - entries CID
- * @param {Buffer} contextId - derived from cid
- * @param {Provider} provider - provider to sign
- * @param {boolean} extendedProviderOverride
- */
-async function providerSignature (previous, peerId, cid, contextId, provider, extendedProviderOverride = false) {
-  const sigBuf = Buffer.concat([
-    previous ? Buffer.from(CID.parse(previous['/']).bytes) : Buffer.alloc(0),
-    Buffer.from(cid.bytes),
-    Buffer.from(peerId.toString(), 'utf-8'),
-    contextId,
-    Buffer.from(provider.ID, 'utf-8'),
-    ...provider.Addresses.map(a => Buffer.from(a, 'utf-8')),
-    provider.Metadata,
-    extendedProviderOverride ? Buffer.from([1]) : Buffer.from([0])
-  ])
-
-  const digest = await sha256.digest(sigBuf)
-  const payload = digest.bytes
-
-  const sealed = await Envelope.seal(
-    {
-      domain: Buffer.from('indexer', 'utf-8'),
-      codec: Buffer.from('/indexer/ingest/adSignature', 'utf-8'),
-      marshal: () => payload
-    },
-    peerId
-  )
-
-  return sealed.marshal()
-}
-
-/**
- * Calculate the signature for an Extended Provider
- * see: https://github.com/ipni/go-libipni/blob/afe2d8ea45b86c2a22f756ee521741c8f99675e5/ingest/schema/envelope.go#L125
- * @param {object} previous
- * @param {PeerId} peerId - advertisment peerId
- * @param {CID} cid - entries CID
- * @param {string[]} addresses - multiaddrs
- * @param {Buffer} metadata - prefixed with varint for http or bitswap
- */
-async function computeAdvertisementSignature(previous, peerId, cid, addresses, metadata) {
-  const payload = (
-    await sha256.digest(
-      Buffer.concat([
-        previous ? Buffer.from(CID.parse(previous['/']).bytes) : Buffer.alloc(0),
-        Buffer.from(cid.bytes),
-        Buffer.from(peerId.toString(), 'utf-8'),
-        ...addresses.map(a => Buffer.from(a, 'utf-8')),
-        metadata,
-        Buffer.alloc(1) // Boolean(IsRm)
-      ])
-    )
-  ).bytes
-
-  const sealed = await Envelope.seal(
-    {
-      domain: Buffer.from('indexer', 'utf-8'),
-      codec: Buffer.from('/indexer/ingest/adSignature', 'utf-8'),
-      marshal: () => payload
-    },
-    peerId
-  )
-
-  return sealed.marshal()
-}
-
-async function updateHead(advertisementCid, peerId) {
-  return uploadToS3(
-    s3Bucket,
-    'head',
-    JSON.stringify({
-      head: {
-        '/': advertisementCid.toString()
-      },
-      pubkey: {
-        '/': { bytes: p2pCrypto.keys.marshalPublicKey(peerId.pubKey).toString('base64') }
-      },
-      sig: {
-        '/': { bytes: (await peerId.privKey.sign(advertisementCid.bytes)).toString('base64') }
-      }
-    })
-  )
+async function updateHead(head, peerId) {
+  const pubkey = peerId.publicKey
+  const key = await p2pCrypto.keys.unmarshalPrivateKey(peerId.privateKey)
+  const sig = await key.sign(head.bytes)
+  const bytes = dagJson.encode({ head, pubkey, sig })
+  return uploadToS3( s3Bucket, 'head', bytes )
 }
 
 async function notifyIndexer(cid, peerId) {
@@ -247,67 +135,54 @@ async function notifyIndexer(cid, peerId) {
   }
 }
 
+let bsPeerId
+let httpPeerId
+
 async function main(event) {
   try {
-    const bsPeerId = await getBitswapPeerId()
-    const httpPeerId = await getHttpPeerId()
+    const { Advertisement, Provider } = await import('@web3-storage/ipni') // sry
+    bsPeerId = bsPeerId ?? await getBitswapPeerId()
+    httpPeerId = httpPeerId ?? await getHttpPeerId()
+  
+    const bits = new Provider({
+      protocol: 'bitswap',
+      addresses: [bitswapPeerMultiaddr],
+      peerId: bsPeerId
+    })
 
-    /** @type {Provider} */
-    const httpProvider = {
-      ID: bsPeerId.toString(),
-      Addresses: [httpPeerMultiaddr],
-      Metadata: HTTP_METADATA
-    }
+    const http = new Provider({
+      protocol: 'http',
+      addresses: [httpPeerMultiaddr],
+      peerId: httpPeerId,
+    })
 
-    /** @type {Provider} */
-    const bitswapProvider = {
-      ID: httpPeerId.toString(),
-      Addresses: [bitswapPeerMultiaddr],
-      Metadata: BITSWAP_METADATA
-    }
-
-    // Track the latest read cid and advertisementCid
-    let cid
-    let advertisementCid
+    let headCid = await fetchHeadCid() ?? null
 
     for (const record of event.Records) {
-      const cidString = record.body
-      const contextId = Buffer.from(cidString)
-      cid = CID.parse(cidString)
+      const entries = CID.parse(record.body)
 
-      const previous = advertisementCid ? { '/': advertisementCid.toString() } : await fetchHeadCid()
+      const ad = new Advertisement({
+        previous: headCid,
+        providers: [bits, http],
+        context: Buffer.from(entries.toString()),
+        entries
+      })
 
-      // Create the advertisement
-      const rawAdvertisement = {
-        Provider: bsPeerId.toString(),
-        Addresses: bitswapProvider.Addresses,
-        Entries: { '/': cidString },
-        ContextID: contextId,
-        Metadata: BITSWAP_METADATA,
-        IsRm: false,
-        ExtendedProvider: {
-          Providers: await signProviders([bitswapProvider, httpProvider], previous, bsPeerId, cid, contextId)
-        },
-        Signature: await computeAdvertisementSignature(previous, bsPeerId, cid, bitswapProvider.Addresses, BITSWAP_METADATA)
-      }
-
-      if (previous) {
-        rawAdvertisement.PreviousID = previous
-      }
-
-      const advertisement = await encodeDAG(rawAdvertisement)
-      advertisementCid = CID.create(1, dagCode, await sha256.digest(advertisement))
+      const value = await ad.encodeAndSign()
+      const block = await Block.encode({ value, codec: dagJson, hasher: sha256})
 
       // Upload the file to S3
-      await uploadToS3(s3Bucket, advertisementCid.toString(), advertisement)
+      await uploadToS3(s3Bucket, block.cid.toString(), block.bytes)
+      headCid = block.cid
+
       telemetry.flush()
     }
 
     // Update the head
-    await updateHead(advertisementCid, bsPeerId)
+    await updateHead(headCid, bsPeerId)
 
     // Notify the indexer-node
-    await notifyIndexer(advertisementCid, bsPeerId)
+    await notifyIndexer(headCid, bsPeerId)
 
     // Return a empty object to signal we have consumed all the messages
     return {}

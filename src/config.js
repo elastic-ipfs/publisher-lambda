@@ -1,7 +1,6 @@
 'use strict'
 
 const { resolve } = require('path')
-const PeerId = require('peer-id')
 
 /* c8 ignore next */
 require('dotenv').config({ path: process.env.ENV_FILE_PATH || resolve(process.cwd(), '.env') })
@@ -20,13 +19,14 @@ const {
 } = process.env
 
 async function fetchPeerId (file) {
+  const { createFromJSON } = await import('@libp2p/peer-id-factory')
   if (!peerIdBucket) {
     throw new Error('PEER_ID_S3_BUCKET must be set in ENV')
   }
   logger.info(`Downloading PeerId from s3://${peerIdBucket}/${file}`)
   const contents = await fetchFromS3(peerIdBucket, file)
   const json = JSON.parse(contents)
-  return await PeerId.createFromJSON(json)
+  return await createFromJSON(json)
 }
 
 async function getHttpPeerId () {
