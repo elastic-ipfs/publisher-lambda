@@ -66,7 +66,7 @@ async function updateHead(head, peerId) {
   const key = await p2pCrypto.keys.unmarshalPrivateKey(peerId.privateKey)
   const sig = await key.sign(head.bytes)
   const bytes = dagJson.encode({ head, pubkey, sig })
-  return uploadToS3( s3Bucket, 'head', bytes )
+  return uploadToS3(s3Bucket, 'head', bytes)
 }
 
 /**
@@ -130,7 +130,7 @@ async function main(event) {
     const { Advertisement, Provider } = await import('@web3-storage/ipni') // sry
     bsPeerId = bsPeerId ?? await getBitswapPeerId()
     httpPeerId = httpPeerId ?? await getHttpPeerId()
-  
+
     const bits = new Provider({
       protocol: 'bitswap',
       addresses: [bitswapPeerMultiaddr],
@@ -140,7 +140,7 @@ async function main(event) {
     const http = new Provider({
       protocol: 'http',
       addresses: [httpPeerMultiaddr],
-      peerId: httpPeerId,
+      peerId: httpPeerId
     })
 
     let headCid = await fetchHeadCid() ?? null
@@ -156,7 +156,7 @@ async function main(event) {
       })
 
       const value = await ad.encodeAndSign()
-      const block = await Block.encode({ value, codec: dagJson, hasher: sha256})
+      const block = await Block.encode({ value, codec: dagJson, hasher: sha256 })
 
       // Upload the file to S3
       await uploadToS3(s3Bucket, block.cid.toString(), block.bytes)
