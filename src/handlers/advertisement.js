@@ -1,13 +1,13 @@
 'use strict'
 
 const dagJson = require('@ipld/dag-json')
-const { encode: encodeCBOR, Token, Type } = require('cborg')
+const dagCbor = require('@ipld/dag-cbor')
 const { BufferList } = require('bl')
 const p2pCrypto = require('libp2p-crypto')
 const { sha256 } = require('multiformats/hashes/sha2')
 const { CID } = require('multiformats/cid')
 const Block = require('multiformats/block')
-const { Multiaddr } = require('multiaddr')
+const { multiaddr } = require('multiaddr')
 const { request } = require('undici')
 
 const { awsRegion, getBitswapPeerId, getHttpPeerId, s3Bucket, bitswapPeerMultiaddr, httpPeerMultiaddr, indexerNodeUrl } = require('../config')
@@ -76,6 +76,10 @@ async function notifyIndexer(cid, peerId) {
     const indexerURL = `${indexerNodeUrl}/ingest/announce`
     logger.info(`notifyIndexer at ${indexerURL}`)
 
+    const addr = multiaddr(`/dns4/${s3Bucket}.s3.${awsRegion}.amazonaws.com/tcp/443/https/p2p/${peerId.toString()}`)
+    const body = dagCbor.encode([
+      cid, [addr.bytes], new Uint8Array()
+    ])
     const { statusCode, headers, body: rawBody } = await telemetry.trackDuration(
       'http-indexer-announcements',
       request(indexerURL, {
@@ -83,27 +87,7 @@ async function notifyIndexer(cid, peerId) {
         headers: {
           'content-type': 'application/cbor; charset=utf-8'
         },
-        body: encodeCBOR(
-          [
-            cid,
-            [
-              new Multiaddr(`/dns4/${s3Bucket}.s3.${awsRegion}.amazonaws.com/tcp/443/https/p2p/${peerId.toString()}`)
-                .bytes
-            ],
-            Buffer.alloc(0)
-          ],
-          {
-            typeEncoders: {
-              Object: function (cid) {
-                // CID must be prepended with 0 for historical reason - See: https://github.com/ipld/cid-cbor
-                const bytes = new BufferList(Buffer.alloc(1))
-                bytes.append(cid.bytes)
-
-                return [new Token(Type.tag, 42), new Token(Type.bytes, bytes.slice())]
-              }
-            }
-          }
-        )
+        body
       })
     )
 
