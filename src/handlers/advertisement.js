@@ -69,6 +69,10 @@ async function updateHead(head, peerId) {
   return uploadToS3( s3Bucket, 'head', bytes )
 }
 
+/**
+ * @param {CID} cid
+ * @param {import('@web3-storage/ipni/dist/advertisement').PeerId} peerId
+ */
 async function notifyIndexer(cid, peerId) {
   try {
     telemetry.increaseCount('http-indexer-announcements')
@@ -77,9 +81,6 @@ async function notifyIndexer(cid, peerId) {
     logger.info(`notifyIndexer at ${indexerURL}`)
 
     const addr = multiaddr(`/dns4/${s3Bucket}.s3.${awsRegion}.amazonaws.com/tcp/443/https/p2p/${peerId.toString()}`)
-    const body = dagCbor.encode([
-      cid, [addr.bytes], new Uint8Array()
-    ])
     const { statusCode, headers, body: rawBody } = await telemetry.trackDuration(
       'http-indexer-announcements',
       request(indexerURL, {
@@ -87,7 +88,9 @@ async function notifyIndexer(cid, peerId) {
         headers: {
           'content-type': 'application/cbor; charset=utf-8'
         },
-        body
+        body: dagCbor.encode([
+          cid, [addr.bytes], new Uint8Array()
+        ])
       })
     )
 
