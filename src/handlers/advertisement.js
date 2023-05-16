@@ -81,6 +81,14 @@ async function notifyIndexer(cid, peerId) {
     logger.info(`notifyIndexer at ${indexerURL}`)
 
     const addr = multiaddr(`/dns4/${s3Bucket}.s3.${awsRegion}.amazonaws.com/tcp/443/https/p2p/${peerId.toString()}`)
+
+    // the request is a cbor encoded array. The extra data field must be sent even if empty
+    // see: https://github.com/ipni/go-libipni/blob/b6e9a9def00b2db19aa4a3bc5fc33b3b1575530e/announce/message/message.go#L14-L29
+    // see: https://github.com/ipni/go-libipni/blob/b6e9a9def00b2db19aa4a3bc5fc33b3b1575530e/announce/message/cbor_message.go#L111-L113
+    const addrs = [addr.bytes]
+    const extraData = new Uint8Array()
+    const requestBody = dagCbor.encode([cid, addrs, extraData])
+
     const { statusCode, headers, body: rawBody } = await telemetry.trackDuration(
       'http-indexer-announcements',
       request(indexerURL, {
@@ -88,9 +96,7 @@ async function notifyIndexer(cid, peerId) {
         headers: {
           'content-type': 'application/cbor; charset=utf-8'
         },
-        body: dagCbor.encode([
-          cid, [addr.bytes], new Uint8Array()
-        ])
+        body: requestBody
       })
     )
 
