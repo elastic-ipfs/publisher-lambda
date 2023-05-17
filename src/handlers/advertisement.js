@@ -14,7 +14,6 @@ const { awsRegion, getBitswapPeerId, getHttpPeerId, s3Bucket, bitswapPeerMultiad
 const { logger, serializeError } = require('../logging')
 const { uploadToS3 } = require('../storage')
 const telemetry = require('../telemetry')
-const PeerId = require('peer-id')
 
 async function fetchHeadCid() {
   try {
@@ -153,11 +152,10 @@ async function main(event) {
           addresses: [httpPeerMultiaddr],
           peerId: httpPeerId ?? await getHttpPeerId()
         })
-        ad = createExtendedProviderAd({ 
+        ad = createExtendedProviderAd({
           previous: headCid,
           providers: [bits, http]
-         })
-
+        })
       } else {
         const entries = CID.parse(record.body)
         const context = Buffer.from(entries.toString())
