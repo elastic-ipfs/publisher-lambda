@@ -22,7 +22,7 @@
     "@ipld/dag-cbor": "^7.0.3",
     "@ipld/dag-json": "^8.0.11",
     "@libp2p/peer-id-factory": "^2.0.3",
-    "@web3-storage/ipni": "^1.0.0",
+    "@web3-storage/ipni": "^1.1.0",
     "bl": "^5.0.0",
     "dotenv": "^10.0.0",
     "hdr-histogram-js": "^3.0.0",

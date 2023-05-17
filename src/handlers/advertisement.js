@@ -14,6 +14,7 @@ const { awsRegion, getBitswapPeerId, getHttpPeerId, s3Bucket, bitswapPeerMultiad
 const { logger, serializeError } = require('../logging')
 const { uploadToS3 } = require('../storage')
 const telemetry = require('../telemetry')
+const PeerId = require('peer-id')
 
 async function fetchHeadCid() {
   try {
@@ -128,38 +129,45 @@ async function notifyIndexer(cid, peerId) {
   }
 }
 
-let bsPeerId
+let bitsPeerId
 let httpPeerId
 
 async function main(event) {
   try {
-    const { Advertisement, Provider } = await import('@web3-storage/ipni') // sry
-    bsPeerId = bsPeerId ?? await getBitswapPeerId()
-    httpPeerId = httpPeerId ?? await getHttpPeerId()
+    const { Advertisement, Provider, createExtendedProviderAd } = await import('@web3-storage/ipni') // sry
+
+    let headCid = await fetchHeadCid() ?? null
 
     const bits = new Provider({
       protocol: 'bitswap',
       addresses: [bitswapPeerMultiaddr],
-      peerId: bsPeerId
+      peerId: bitsPeerId ?? await getBitswapPeerId()
     })
-
-    const http = new Provider({
-      protocol: 'http',
-      addresses: [httpPeerMultiaddr],
-      peerId: httpPeerId
-    })
-
-    let headCid = await fetchHeadCid() ?? null
 
     for (const record of event.Records) {
-      const entries = CID.parse(record.body)
+      let ad
 
-      const ad = new Advertisement({
-        previous: headCid,
-        providers: [bits, http],
-        context: Buffer.from(entries.toString()),
-        entries
-      })
+      if (record.body === 'ExtendedProviderHTTP') {
+        const http = new Provider({
+          protocol: 'http',
+          addresses: [httpPeerMultiaddr],
+          peerId: httpPeerId ?? await getHttpPeerId()
+        })
+        ad = createExtendedProviderAd({ 
+          previous: headCid,
+          providers: [bits, http]
+         })
+
+      } else {
+        const entries = CID.parse(record.body)
+        const context = Buffer.from(entries.toString())
+        ad = new Advertisement({
+          previous: headCid,
+          providers: [bits],
+          context,
+          entries
+        })
+      }
 
       const value = await ad.encodeAndSign()
       const block = await Block.encode({ value, codec: dagJson, hasher: sha256 })
@@ -172,10 +180,10 @@ async function main(event) {
     }
 
     // Update the head
-    await updateHead(headCid, bsPeerId)
+    await updateHead(headCid, bits.peerId)
 
     // Notify the indexer-node
-    await notifyIndexer(headCid, bsPeerId)
+    await notifyIndexer(headCid, bits.peerId)
 
     // Return a empty object to signal we have consumed all the messages
     return {}
