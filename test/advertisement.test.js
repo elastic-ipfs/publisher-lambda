@@ -124,7 +124,7 @@ t.test('advertisement - extended provider', async t => {
   t.strictSame(
     await handler({
       Records: [
-        { body: 'ExtendedProviderHTTP' },
+        { body: 'AnnounceHTTP' },
         { body: 'baguqeeramxlkaqnblpdl53ygpu4ackscn7ipm54ra2iwiq5kfolvd6vh6bda' }
       ]
     }),

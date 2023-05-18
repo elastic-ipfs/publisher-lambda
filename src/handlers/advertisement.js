@@ -15,6 +15,9 @@ const { logger, serializeError } = require('../logging')
 const { uploadToS3 } = require('../storage')
 const telemetry = require('../telemetry')
 
+// see: https://github.com/elastic-ipfs/publisher-lambda/pull/27
+const SPECIAL_MESSAGE_ANNOUNCE_HTTP_PROVIDER = 'AnnounceHTTP'
+
 async function fetchHeadCid() {
   try {
     telemetry.increaseCount('http-head-cid-fetchs')
@@ -146,7 +149,7 @@ async function main(event) {
     for (const record of event.Records) {
       let ad
 
-      if (record.body === 'ExtendedProviderHTTP') {
+      if (record.body === SPECIAL_MESSAGE_ANNOUNCE_HTTP_PROVIDER) {
         const http = new Provider({
           protocol: 'http',
           addresses: [httpPeerMultiaddr],
