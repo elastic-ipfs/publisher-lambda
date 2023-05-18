@@ -40,7 +40,7 @@ async function fetchHeadCid() {
 
     // Some error occurred, return with an error
     if (statusCode === 200) {
-      return body.head
+      return CID.parse(body.head['/'])
       // S3 can also give 403 when the file does not exist
     } else if (statusCode !== 403 && statusCode !== 404) {
       logger.error({ body, statusCode }, `Downloading previous head failed with status code ${statusCode}.`)

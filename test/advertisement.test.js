@@ -49,7 +49,7 @@ t.test('advertisement - creates a new head when none is found and notifies the i
   t.notOk(dagJson.decode(t.context.s3.puts[0].Body).PreviousID)
 })
 
-t.test('advertisement - links to the previous  head and notifies the indexer', async t => {
+t.test('advertisement - links to the previous head and notifies the indexer', async t => {
   t.plan(8)
 
   const mockAgent = new MockAgent()
