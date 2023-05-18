@@ -132,7 +132,6 @@ async function notifyIndexer(cid, peerId) {
 }
 
 let bitsPeerId
-let httpPeerId
 
 async function main(event) {
   try {
@@ -153,7 +152,7 @@ async function main(event) {
         const http = new Provider({
           protocol: 'http',
           addresses: [httpPeerMultiaddr],
-          peerId: httpPeerId ?? await getHttpPeerId()
+          peerId: await getHttpPeerId()
         })
         ad = createExtendedProviderAd({
           previous: headCid,
