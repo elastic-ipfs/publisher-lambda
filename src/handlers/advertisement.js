@@ -1,19 +1,22 @@
 'use strict'
 
-const { encode: encodeDAG, code: dagCode } = require('@ipld/dag-json')
-const { encode: encodeCBOR, Token, Type } = require('cborg')
+const dagJson = require('@ipld/dag-json')
+const dagCbor = require('@ipld/dag-cbor')
 const { BufferList } = require('bl')
-const Envelope = require('libp2p/src/record/envelope')
 const p2pCrypto = require('libp2p-crypto')
 const { sha256 } = require('multiformats/hashes/sha2')
 const { CID } = require('multiformats/cid')
-const { Multiaddr } = require('multiaddr')
+const Block = require('multiformats/block')
+const { multiaddr } = require('multiaddr')
 const { request } = require('undici')
 
-const { awsRegion, getPeerId, s3Bucket, bitswapPeerMultiaddr, indexerNodeUrl, metadata } = require('../config')
+const { awsRegion, getBitswapPeerId, getHttpPeerId, s3Bucket, bitswapPeerMultiaddr, httpPeerMultiaddr, indexerNodeUrl } = require('../config')
 const { logger, serializeError } = require('../logging')
 const { uploadToS3 } = require('../storage')
 const telemetry = require('../telemetry')
+
+// see: https://github.com/elastic-ipfs/publisher-lambda/pull/27
+const SPECIAL_MESSAGE_ANNOUNCE_HTTP_PROVIDER = 'AnnounceHTTP'
 
 async function fetchHeadCid() {
   try {
@@ -37,7 +40,7 @@ async function fetchHeadCid() {
 
     // Some error occurred, return with an error
     if (statusCode === 200) {
-      return body.head
+      return CID.parse(body.head['/'])
       // S3 can also give 403 when the file does not exist
     } else if (statusCode !== 403 && statusCode !== 404) {
       logger.error({ body, statusCode }, `Downloading previous head failed with status code ${statusCode}.`)
@@ -57,56 +60,37 @@ async function fetchHeadCid() {
   }
 }
 
-async function computeAdvertisementSignature(previous, peerId, cid, addresses) {
-  const payload = (
-    await sha256.digest(
-      Buffer.concat([
-        previous ? Buffer.from(CID.parse(previous['/']).bytes) : Buffer.alloc(0),
-        Buffer.from(cid.bytes),
-        Buffer.from(peerId.toString(), 'utf-8'),
-        ...addresses.map(a => Buffer.from(a, 'utf-8')),
-        metadata,
-        Buffer.alloc(1) // Boolean(IsRm)
-      ])
-    )
-  ).bytes
-
-  const sealed = await Envelope.seal(
-    {
-      domain: Buffer.from('indexer', 'utf-8'),
-      codec: Buffer.from('/indexer/ingest/adSignature', 'utf-8'),
-      marshal: () => payload
-    },
-    peerId
-  )
-
-  return sealed.marshal()
+/**
+ * @param {CID} head
+ * @param {import('@web3-storage/ipni/dist/advertisement').PeerId} peerId
+ */
+async function updateHead(head, peerId) {
+  const pubkey = peerId.publicKey
+  const key = await p2pCrypto.keys.unmarshalPrivateKey(peerId.privateKey)
+  const sig = await key.sign(head.bytes)
+  const bytes = dagJson.encode({ head, pubkey, sig })
+  return uploadToS3(s3Bucket, 'head', bytes)
 }
 
-async function updateHead(advertisementCid, peerId) {
-  return uploadToS3(
-    s3Bucket,
-    'head',
-    JSON.stringify({
-      head: {
-        '/': advertisementCid.toString()
-      },
-      pubkey: {
-        '/': { bytes: p2pCrypto.keys.marshalPublicKey(peerId.pubKey).toString('base64') }
-      },
-      sig: {
-        '/': { bytes: (await peerId.privKey.sign(advertisementCid.bytes)).toString('base64') }
-      }
-    })
-  )
-}
-
+/**
+ * @param {CID} cid
+ * @param {import('@web3-storage/ipni/dist/advertisement').PeerId} peerId
+ */
 async function notifyIndexer(cid, peerId) {
   try {
     telemetry.increaseCount('http-indexer-announcements')
 
     const indexerURL = `${indexerNodeUrl}/ingest/announce`
     logger.info(`notifyIndexer at ${indexerURL}`)
+
+    const addr = multiaddr(`/dns4/${s3Bucket}.s3.${awsRegion}.amazonaws.com/tcp/443/https/p2p/${peerId.toString()}`)
+
+    // the request is a cbor encoded array. The extra data field must be sent even if empty
+    // see: https://github.com/ipni/go-libipni/blob/b6e9a9def00b2db19aa4a3bc5fc33b3b1575530e/announce/message/message.go#L14-L29
+    // see: https://github.com/ipni/go-libipni/blob/b6e9a9def00b2db19aa4a3bc5fc33b3b1575530e/announce/message/cbor_message.go#L111-L113
+    const addrs = [addr.bytes]
+    const extraData = new Uint8Array()
+    const requestBody = dagCbor.encode([cid, addrs, extraData])
 
     const { statusCode, headers, body: rawBody } = await telemetry.trackDuration(
       'http-indexer-announcements',
@@ -115,27 +99,7 @@ async function notifyIndexer(cid, peerId) {
         headers: {
           'content-type': 'application/cbor; charset=utf-8'
         },
-        body: encodeCBOR(
-          [
-            cid,
-            [
-              new Multiaddr(`/dns4/${s3Bucket}.s3.${awsRegion}.amazonaws.com/tcp/443/https/p2p/${peerId.toString()}`)
-                .bytes
-            ],
-            Buffer.alloc(0)
-          ],
-          {
-            typeEncoders: {
-              Object: function (cid) {
-                // CID must be prepended with 0 for historical reason - See: https://github.com/ipld/cid-cbor
-                const bytes = new BufferList(Buffer.alloc(1))
-                bytes.append(cid.bytes)
-
-                return [new Token(Type.tag, 42), new Token(Type.bytes, bytes.slice())]
-              }
-            }
-          }
-        )
+        body: requestBody
       })
     )
 
@@ -167,49 +131,59 @@ async function notifyIndexer(cid, peerId) {
   }
 }
 
+let bitsPeerId
+
 async function main(event) {
   try {
-    const peerId = await getPeerId()
+    const { Advertisement, Provider, createExtendedProviderAd } = await import('@web3-storage/ipni') // sry
 
-    // Track the latest read cid and advertisementCid
-    let cid
-    let advertisementCid
+    let headCid = await fetchHeadCid() ?? null
+
+    const bits = new Provider({
+      protocol: 'bitswap',
+      addresses: [bitswapPeerMultiaddr],
+      peerId: bitsPeerId ?? await getBitswapPeerId()
+    })
 
     for (const record of event.Records) {
-      const cidString = record.body
-      cid = CID.parse(cidString)
+      let ad
 
-      const previous = advertisementCid ? { '/': advertisementCid.toString() } : await fetchHeadCid()
-      const addresses = [bitswapPeerMultiaddr]
-
-      // Create the advertisement
-      const rawAdvertisement = {
-        Provider: peerId.toString(),
-        Addresses: addresses,
-        Entries: { '/': cidString },
-        ContextID: { '/': { bytes: Buffer.from(cidString).toString('base64') } },
-        Metadata: metadata,
-        IsRm: false,
-        Signature: await computeAdvertisementSignature(previous, peerId, cid, addresses)
+      if (record.body === SPECIAL_MESSAGE_ANNOUNCE_HTTP_PROVIDER) {
+        const http = new Provider({
+          protocol: 'http',
+          addresses: [httpPeerMultiaddr],
+          peerId: await getHttpPeerId()
+        })
+        ad = createExtendedProviderAd({
+          previous: headCid,
+          providers: [bits, http]
+        })
+      } else {
+        const entries = CID.parse(record.body)
+        const context = Buffer.from(entries.toString())
+        ad = new Advertisement({
+          previous: headCid,
+          providers: [bits],
+          context,
+          entries
+        })
       }
 
-      if (previous) {
-        rawAdvertisement.PreviousID = previous
-      }
-
-      const advertisement = await encodeDAG(rawAdvertisement)
-      advertisementCid = CID.create(1, dagCode, await sha256.digest(advertisement))
+      const value = await ad.encodeAndSign()
+      const block = await Block.encode({ value, codec: dagJson, hasher: sha256 })
 
       // Upload the file to S3
-      await uploadToS3(s3Bucket, advertisementCid.toString(), advertisement)
+      await uploadToS3(s3Bucket, block.cid.toString(), block.bytes)
+      headCid = block.cid
+
       telemetry.flush()
     }
 
     // Update the head
-    await updateHead(advertisementCid, peerId)
+    await updateHead(headCid, bits.peerId)
 
     // Notify the indexer-node
-    await notifyIndexer(advertisementCid, peerId)
+    await notifyIndexer(headCid, bits.peerId)
 
     // Return a empty object to signal we have consumed all the messages
     return {}

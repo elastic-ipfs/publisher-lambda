@@ -1,8 +1,6 @@
 'use strict'
 
-const { readFile, writeFile } = require('fs/promises')
-const { join, resolve } = require('path')
-const PeerId = require('peer-id')
+const { resolve } = require('path')
 
 /* c8 ignore next */
 require('dotenv').config({ path: process.env.ENV_FILE_PATH || resolve(process.cwd(), '.env') })
@@ -13,41 +11,40 @@ const { fetchFromS3 } = require('./storage')
 const {
   AWS_REGION: awsRegion,
   BITSWAP_PEER_MULTIADDR: bitswapPeerMultiaddr,
+  HTTP_PEER_MULTIADDR: httpPeerMultiaddr,
   INDEXER_NODE_URL: indexerNodeUrl,
-  PEER_ID_DIRECTORY: peerIdJsonDirectory,
-  PEER_ID_FILE: peerIdJsonFile,
+  PEER_ID_S3_BUCKET: peerIdBucket,
   S3_BUCKET: s3Bucket,
   SQS_ADVERTISEMENTS_QUEUE_URL: advertisementsQueue
 } = process.env
 
-async function downloadPeerIdFile() {
-  const file = peerIdJsonFile ?? 'peerId.json'
-  logger.info(`Downloading PeerId from s3://${process.env.PEER_ID_S3_BUCKET}/${file}`)
-
-  const contents = await fetchFromS3(process.env.PEER_ID_S3_BUCKET, file)
-  return writeFile(module.exports.peerIdJsonPath, contents)
+async function fetchPeerId (file) {
+  const { createFromJSON } = await import('@libp2p/peer-id-factory')
+  if (!peerIdBucket) {
+    throw new Error('PEER_ID_S3_BUCKET must be set in ENV')
+  }
+  logger.info(`Downloading PeerId from s3://${peerIdBucket}/${file}`)
+  const contents = await fetchFromS3(peerIdBucket, file)
+  const json = JSON.parse(contents)
+  return await createFromJSON(json)
 }
 
-async function getPeerId() {
-  if (process.env.PEER_ID_S3_BUCKET) {
-    await downloadPeerIdFile()
-  }
+async function getHttpPeerId () {
+  return fetchPeerId('peerId-http.json')
+}
 
-  try {
-    const peerIdJson = JSON.parse(await readFile(module.exports.peerIdJsonPath, 'utf-8'))
-    return await PeerId.createFromJSON(peerIdJson)
-  } catch (e) {
-    return PeerId.create()
-  }
+async function getBitswapPeerId () {
+  return fetchPeerId('peerId.json')
 }
 
 module.exports = {
   advertisementsQueue: advertisementsQueue ?? 'advertisementsQueue',
   awsRegion,
   bitswapPeerMultiaddr,
-  getPeerId,
+  httpPeerMultiaddr,
+  getBitswapPeerId,
+  getHttpPeerId,
   indexerNodeUrl,
-  metadata: Buffer.from('gBI=', 'base64'), // To regenerate: Buffer.from(require('varint').encode(0x900)).toString('base64')
-  peerIdJsonPath: join(peerIdJsonDirectory ?? '/tmp', peerIdJsonFile ?? 'peerId.json'),
+  peerIdBucket,
   s3Bucket: s3Bucket ?? 'advertisements'
 }
