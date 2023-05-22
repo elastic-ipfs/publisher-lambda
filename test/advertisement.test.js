@@ -143,7 +143,9 @@ t.test('advertisement - extended provider', async t => {
   t.equal(ad.PreviousID.toString(), head)
   t.equal(ad.ExtendedProvider.Providers.length, 2)
   t.equal(ad.ExtendedProvider.Providers[1].Addresses[0], '/dns4/freeway.dag.house/tcp/443/https' )
-  t.same(ad.ExtendedProvider.Providers[1].Metadata, new Uint8Array(varint.encode(0x0920)))
+  // the last byte is a varint 0 denoting the empty payload length see: https://github.com/web3-storage/ipni/pull/15
+  const httpMetaWith0lengthpayload = varint.encode(0x0920, new Uint8Array(3)) // [ 160, 18, 0 ]
+  t.same(ad.ExtendedProvider.Providers[1].Metadata, httpMetaWith0lengthpayload)
 })
 
 t.test('advertisement - handles head fetching HTTP error', async t => {
