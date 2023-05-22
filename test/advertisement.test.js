@@ -3,6 +3,7 @@
 process.env.HANDLER = 'advertisement'
 
 const t = require('tap')
+const varint = require('varint')
 const dagJson = require('@ipld/dag-json')
 const { MockAgent, setGlobalDispatcher } = require('undici')
 const { awsRegion, s3Bucket, indexerNodeUrl } = require('../src/config')
@@ -97,7 +98,7 @@ t.test('advertisement - links to the previous head and notifies the indexer', as
 })
 
 t.test('advertisement - extended provider', async t => {
-  t.plan(10)
+  t.plan(11)
 
   const mockAgent = new MockAgent()
   const mockHeadPool = mockAgent.get(`https://${s3Bucket}.s3.${awsRegion}.amazonaws.com`)
@@ -142,6 +143,7 @@ t.test('advertisement - extended provider', async t => {
   t.equal(ad.PreviousID.toString(), head)
   t.equal(ad.ExtendedProvider.Providers.length, 2)
   t.equal(ad.ExtendedProvider.Providers[1].Addresses[0], '/dns4/freeway.dag.house/tcp/443/https' )
+  t.same(ad.ExtendedProvider.Providers[1].Metadata, new Uint8Array(varint.encode(0x0920)))
 })
 
 t.test('advertisement - handles head fetching HTTP error', async t => {
