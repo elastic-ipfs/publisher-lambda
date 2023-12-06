@@ -1,4 +1,4 @@
-# Elastic IPFS Publisher Lambda
+# Elastic IPFS Publisher Lambda
 
 > Publish IPNI advertisements and notify the indexers about all the multihashes.
 
@@ -26,7 +26,7 @@ This will add an advertisement to the chain with announcing `HTTP_PEER_MULTIADDR
 
 After that message is sent the indexers will add the http provider info to the results for all existing and future entries. This message only needs to be sent once.
 
-## Getting started
+## Getting started
 
 Using node v16 run `npm i` and `npm test`. Use CI to publish to dev / staging / prod
 
