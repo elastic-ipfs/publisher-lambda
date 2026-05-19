@@ -6,7 +6,7 @@ const t = require('tap')
 const varint = require('varint')
 const dagJson = require('@ipld/dag-json')
 const { MockAgent, setGlobalDispatcher } = require('undici')
-const { awsRegion, s3Bucket, indexerNodeUrl } = require('../src/config')
+const { awsRegion, s3Bucket, indexerNodeUrl, bitswapPeerMultiaddr } = require('../src/config')
 const { handler } = require('../src/index')
 const { trackAWSUsages, mockPeerIds } = require('./utils/mock')
 
@@ -290,4 +290,71 @@ t.test('advertisement - handles indexer announcing generic error', async t => {
       }),
     { message: 'ERROR' }
   )
+})
+
+t.test('advertisement - clear extended provider', async t => {
+  t.plan(18)
+
+  const mockAgent = new MockAgent()
+  const mockHeadPool = mockAgent.get(`https://${s3Bucket}.s3.${awsRegion}.amazonaws.com`)
+  const mockIndexerPool = mockAgent.get(indexerNodeUrl)
+  mockPeerIds()
+
+  const head = 'baguqeeralr4pwxvbcc6voioqyc6aneg4pkoh5rhrfj35gbhrpxpeavsh6vsa'
+  mockAgent.disableNetConnect()
+  mockHeadPool
+    .intercept({ method: 'GET', path: '/head' })
+    .reply(200, `{"head": {"/": "${head}"}}`, {
+      headers: { 'content-type': 'application/json' }
+    })
+  mockIndexerPool
+    .intercept({
+      method: 'PUT',
+      path: '/ingest/announce'
+    })
+    .reply(204, '')
+
+  trackAWSUsages(t)
+  setGlobalDispatcher(mockAgent)
+
+  t.strictSame(
+    await handler({
+      Records: [
+        { body: 'ClearExtendedProvider' }
+      ]
+    }),
+    {}
+  )
+
+  t.equal(t.context.s3.puts.length, 2)
+  t.equal(t.context.s3.puts[0].Bucket, s3Bucket)
+  t.ok(t.context.s3.puts[0].Key.startsWith('bagu'))
+  t.equal(t.context.s3.puts[1].Bucket, s3Bucket)
+  t.equal(t.context.s3.puts[1].Key, 'head')
+
+  const ad = dagJson.decode(t.context.s3.puts[0].Body)
+
+  // AC6 chain continuity
+  t.equal(ad.PreviousID.toString(), head)
+
+  // AC3 ExtendedProvider field present with empty Providers array
+  t.ok(ad.ExtendedProvider)
+  t.ok(Array.isArray(ad.ExtendedProvider.Providers))
+  t.equal(ad.ExtendedProvider.Providers.length, 0)
+
+  // AC4 Override field present (value not locked)
+  t.ok('Override' in ad.ExtendedProvider)
+
+  // AC5 base provider unchanged - Addresses
+  t.ok(Array.isArray(ad.Addresses))
+  t.equal(ad.Addresses.length, 1)
+  t.equal(ad.Addresses[0], bitswapPeerMultiaddr)
+
+  // AC5 base provider unchanged - Provider peer ID
+  t.equal(typeof ad.Provider, 'string')
+  t.ok(ad.Provider.length > 0)
+
+  // AC7 signature present
+  t.ok(ad.Signature instanceof Uint8Array || Buffer.isBuffer(ad.Signature))
+  t.ok(ad.Signature.length > 0)
 })
