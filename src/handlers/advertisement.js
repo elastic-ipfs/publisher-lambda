@@ -18,6 +18,9 @@ const telemetry = require('../telemetry')
 // see: https://github.com/elastic-ipfs/publisher-lambda/pull/27
 const SPECIAL_MESSAGE_ANNOUNCE_HTTP_PROVIDER = 'AnnounceHTTP'
 
+// see: https://github.com/ipni/storetheindex/pull/2814
+const SPECIAL_MESSAGE_CLEAR_EXTENDED_PROVIDER = 'ClearExtendedProvider'
+
 async function fetchHeadCid() {
   try {
     telemetry.increaseCount('http-head-cid-fetchs')
@@ -147,6 +150,7 @@ async function main(event) {
 
     for (const record of event.Records) {
       let ad
+      let clearExtendedProvider = false
 
       if (record.body === SPECIAL_MESSAGE_ANNOUNCE_HTTP_PROVIDER) {
         const http = new Provider({
@@ -158,6 +162,14 @@ async function main(event) {
           previous: headCid,
           providers: [bits, http]
         })
+      } else if (record.body === SPECIAL_MESSAGE_CLEAR_EXTENDED_PROVIDER) {
+        ad = new Advertisement({
+          previous: headCid,
+          providers: [bits],
+          entries: null,
+          context: null
+        })
+        clearExtendedProvider = true
       } else {
         const entries = CID.parse(record.body)
         const context = Buffer.from(entries.toString())
@@ -170,6 +182,14 @@ async function main(event) {
       }
 
       const value = await ad.encodeAndSign()
+      // The library only writes ExtendedProvider when providers.length > 1; attach
+      // the empty-Providers shape after signing so storetheindex's Empty() clearing
+      // path triggers (https://github.com/ipni/storetheindex/pull/2814). The AD
+      // signature covers previous+entries+provider+addresses+metadata+IsRm only,
+      // so this attachment does not invalidate it.
+      if (clearExtendedProvider) {
+        value.ExtendedProvider = { Providers: [], Override: false }
+      }
       const block = await Block.encode({ value, codec: dagJson, hasher: sha256 })
 
       // Upload the file to S3
